@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Piano Buddy</title>
+<style>
+  :root{
+    --bg1:#1a1424; --bg2:#2a1f3a; --bg3:#3c2d4d; --accent:#c96688;
+    --panel:#f6dbe4; --panel-border:#c96688;
+    --ink:#f2e8f5; --panel-ink:#1a0a10; --good:#1e6b2a; --bad:#8f1d18;
+    --key-white:#fff7f9; --key-black:#2a0c17; --key-active:#EF88AD;
+    --shadow:rgba(0,0,0,0.35);
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  html{scroll-padding-top:env(safe-area-inset-top,0px); height:100%;}
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100%; color:var(--ink); position:relative; isolation:isolate;
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:24px 12px; gap:12px; overflow-x:hidden;
+    background:linear-gradient(165deg, var(--bg1) 0%, var(--bg2) 55%, var(--bg3) 100%);
+  }
+  .sky{ position:fixed; inset:0; overflow:hidden; z-index:-1; pointer-events:none; }
+  .note-float{ position:absolute; bottom:-10%; font-size:1.3rem; opacity:0.3; animation:rise linear infinite; color:#fff; }
+  .star{ position:absolute; background:#fff; border-radius:50%; animation:twinkle ease-in-out infinite; }
+  @keyframes rise{
+    from{ transform:translateY(0) rotate(0deg); opacity:0; }
+    10%{ opacity:0.45; } 90%{ opacity:0.3; }
+    to{ transform:translateY(-115vh) rotate(25deg); opacity:0; }
+  }
+  @keyframes twinkle{ 0%,100%{ opacity:0.15;} 50%{ opacity:0.9;} }
+  h1{font-size:1.3rem; margin:0; letter-spacing:0.5px; color:var(--ink); text-shadow:0 2px 8px rgba(0,0,0,0.4);}
+  .stage{
+    background:var(--panel); border:2px solid var(--panel-border); color:var(--panel-ink);
+    border-radius:24px; padding:20px 18px 16px;
+    box-shadow:0 18px 40px var(--shadow);
+    max-width:520px; width:100%;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+  }
+  .status{ min-height:1.4em; font-size:0.93rem; opacity:0.9; text-align:center; color:var(--panel-ink);}
+
+  /* Character - cute round pink blob, original design */
+  .character{ position:relative; width:150px; height:140px; }
+  .blob{
+    position:absolute; left:50%; top:10px; transform:translate(-50%,0);
+    width:120px; height:108px; background:#ffc9db; border-radius:50%;
+    border:3px solid #f2a9c2; z-index:1; animation:floaty 2.6s ease-in-out infinite;
+    transition:transform .12s ease;
+  }
+  .blob.squish{ animation-play-state:paused; transform:translate(-50%,2px) scaleY(0.86) scaleX(1.08); }
+  @keyframes floaty{ 0%,100%{ transform:translate(-50%,0);} 50%{ transform:translate(-50%,-9px);} }
+  .foot{ position:absolute; bottom:4px; width:38px; height:28px; background:#e0466f; border-radius:50%; z-index:0; box-shadow:inset 0 -4px 6px rgba(0,0,0,0.15);}
+  .foot.l{ left:16px; } .foot.r{ right:16px; }
+  .eye{ position:absolute; width:9px; height:14px; background:#3a2530; border-radius:50%; top:50px; z-index:2; transition:height .08s, top .08s;}
+  .eye.l{ left:44px;} .eye.r{ left:80px;}
+  .eye .glint{ position:absolute; width:3px; height:3px; background:#fff; border-radius:50%; top:2px; left:2px;}
+  .eye.blink{ height:2px; top:57px; }
+  .blush{ position:absolute; width:14px; height:8px; background:#ff9fb8; border-radius:50%; opacity:0.75; top:64px; z-index:2;}
+  .blush.l{ left:30px;} .blush.r{ left:92px;}
+  .smile{ position:absolute; left:58px; top:68px; width:15px; height:7px; border-bottom:2.5px solid #b5495f; border-radius:0 0 15px 15px; z-index:2;}
+
+  /* Piano */
+  .piano{ position:relative; width:100%; max-width:520px; height:130px; margin-top:2px; user-select:none; overflow-x:auto; }
+  .white-keys{ display:flex; height:100%; gap:2px; min-width:600px; }
+  .wkey{
+    flex:1; background:var(--key-white); border:1px solid #cbbcc2; border-radius:0 0 6px 6px;
+    box-shadow:0 3px 0 #cbbcc2; cursor:pointer; display:flex; align-items:flex-end; justify-content:center;
+    padding-bottom:6px; font-size:0.6rem; color:#998892; transition:background .08s, transform .06s;
+  }
+  .wkey:active, .wkey.active{ background:var(--key-active); transform:translateY(2px); box-shadow:0 1px 0 #cbbcc2; }
+  .black-keys{ position:absolute; top:0; left:0; width:100%; height:62%; display:flex; pointer-events:none; min-width:600px; }
+  .bkey{
+    position:absolute; width:5.8%; height:100%; background:var(--key-black); border-radius:0 0 4px 4px;
+    box-shadow:0 3px 0 #150610; cursor:pointer; pointer-events:auto; transition:background .08s, transform .06s;
+  }
+  .bkey:active, .bkey.active{ background:var(--bg3); transform:translateY(2px); box-shadow:0 1px 0 #150610; }
+
+  /* Challenge picker */
+  .challenge-picker{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  button{
+    background:#ffffff; color:var(--panel-ink); border:1.5px solid var(--panel-ink);
+    border-radius:18px; padding:8px 14px;
+    font-size:0.82rem; font-weight:700; cursor:pointer; box-shadow:0 3px 0 var(--panel-ink); transition:transform .08s, background .12s;
+  }
+  button:hover{ background:#fff0f4; }
+  button:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--panel-ink); }
+  button.secondary{ background:transparent; color:var(--panel-ink); border:1.5px solid var(--panel-ink); opacity:0.8; box-shadow:none; }
+  button.picked{ background:var(--bg2); color:#fff; border-color:var(--bg2); box-shadow:0 3px 0 #16101f; }
+
+  .challenge-wrap{ width:100%; max-width:520px; display:none; flex-direction:column; gap:8px; align-items:center; }
+  .challenge-wrap.show{ display:flex; }
+  .track{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; max-width:100%; }
+  .pill{
+    width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:0.7rem; font-weight:700; background:#ffffff; color:var(--panel-ink); border:1px solid rgba(26,10,16,0.3); transition:transform .15s, background .15s;
+  }
+  .pill.current{ background:var(--bg2); color:#fff; border-color:var(--bg2); transform:scale(1.18); box-shadow:0 0 10px rgba(44,22,80,0.5); }
+  .pill.correct{ background:var(--good); color:#fff; border-color:var(--good); }
+  .pill.wrong{ background:var(--bad); color:#fff; border-color:var(--bad); animation:shake .3s; }
+  @keyframes shake{ 25%{transform:translateX(-4px);} 75%{transform:translateX(4px);} }
+  .score-line{ font-size:0.9rem; font-weight:600; }
+  footer{ font-size:0.72rem; opacity:0.75; margin-top:2px; text-align:center;}
+</style>
+</head>
+<body>
+  <div class="sky" id="sky"></div>
+  <h1>🎹 Piano Buddy</h1>
+  <div class="stage">
+    <div class="character" id="character">
+      <div class="blob" id="blob"></div>
+      <div class="foot l"></div>
+      <div class="foot r"></div>
+      <div class="eye l" id="eyeL"><div class="glint"></div></div>
+      <div class="eye r" id="eyeR"><div class="glint"></div></div>
+      <div class="blush l"></div>
+      <div class="blush r"></div>
+      <div class="smile"></div>
+    </div>
+    <div class="status" id="status">Pick a challenge below, or just play freely!</div>
+
+    <div class="piano" id="piano">
+      <div class="white-keys" id="whiteKeys"></div>
+      <div class="black-keys" id="blackKeys"></div>
+    </div>
+
+    <div class="challenge-picker" id="challengePicker"></div>
+
+    <div class="challenge-wrap" id="challengeWrap">
+      <div class="track" id="track"></div>
+      <div class="score-line" id="scoreLine">Score: 0 / 0</div>
+      <button class="secondary" id="exitChallengeBtn">✕ Back to free play</button>
+    </div>
+
+    <footer>Hold a key to play it — or use your keyboard: <b>A S D F G H J K</b> (white) and <b>W E T Y U</b> (black), first octave. Scroll the piano for two more octaves!</footer>
+  </div>
+
+<script>
+// --- Build a two-octave-plus keyboard programmatically ---
+const WHITE_NAMES = ['C','D','E','F','G','A','B'];
+const SHARP_AFTER = [0,1,3,4,5]; // relative white-key index a sharp sits after, within an octave
+const OCTAVES = [4,5];
+const NOTE_NAMES_CHROMATIC = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+function freqFor(name, octave){
+  const idx = NOTE_NAMES_CHROMATIC.indexOf(name);
+  const semitoneFromA4 = (octave - 4) * 12 + idx - 9; // A4 = index 9
+  return 440 * Math.pow(2, semitoneFromA4 / 12);
+}
+
+let WHITE_ORDER = [];
+let BLACK_KEYS = [];
+OCTAVES.forEach(oct => {
+  const start = WHITE_ORDER.length;
+  WHITE_NAMES.forEach(n => WHITE_ORDER.push(n + oct));
+  SHARP_AFTER.forEach(rel => BLACK_KEYS.push({ note: WHITE_NAMES[rel] + '#' + oct, afterIndex: start + rel }));
+});
+WHITE_ORDER.push('C6');
+
+const NOTE_FREQ = {};
+WHITE_ORDER.forEach(n => { NOTE_FREQ[n] = freqFor(n.slice(0,-1), parseInt(n.slice(-1))); });
+BLACK_KEYS.forEach(bk => { const oct = parseInt(bk.note.slice(-1)); NOTE_FREQ[bk.note] = freqFor(bk.note.slice(0,-1), oct); });
+
+const NOTE_LABEL = n => n.replace(/[0-9]/,'');
+
+const whiteKeysEl = document.getElementById('whiteKeys');
+const blackKeysEl = document.getElementById('blackKeys');
+const statusEl = document.getElementById('status');
+const eyeL = document.getElementById('eyeL');
+const eyeR = document.getElementById('eyeR');
+const blobEl = document.getElementById('blob');
+
+let audioCtx = null;
+function ensureAudio(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+const activeNotes = {};
+function noteOn(note){
+  ensureAudio();
+  if(activeNotes[note]) return;
+  const freq = NOTE_FREQ[note];
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(freq, now);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.28, now + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.12, now + 0.4);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(now);
+  activeNotes[note] = { osc, gain };
+  const el = keyEl(note);
+  if(el) el.classList.add('active');
+}
+function noteOff(note){
+  const active = activeNotes[note];
+  if(!active) return;
+  const now = audioCtx.currentTime;
+  active.gain.gain.cancelScheduledValues(now);
+  active.gain.gain.setValueAtTime(active.gain.gain.value, now);
+  active.gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+  active.osc.stop(now + 0.3);
+  delete activeNotes[note];
+  const el = keyEl(note);
+  if(el) el.classList.remove('active');
+}
+
+const KEY_MAP = {
+  'a':'C4','s':'D4','d':'E4','f':'F4','g':'G4','h':'A4','j':'B4','k':'C5',
+  'w':'C#4','e':'D#4','t':'F#4','y':'G#4','u':'A#4'
+};
+
+function reactCharacter(){
+  blobEl.classList.add('squish');
+  clearTimeout(blobEl._t);
+  blobEl._t = setTimeout(()=> blobEl.classList.remove('squish'), 140);
+}
+
+function pressNote(note){
+  noteOn(note);
+  reactCharacter();
+  handleChallengeInput(note);
+}
+function releaseNote(note){ noteOff(note); }
+
+WHITE_ORDER.forEach(note => {
+  const el = document.createElement('div');
+  el.className = 'wkey';
+  el.dataset.note = note;
+  el.textContent = NOTE_LABEL(note);
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); pressNote(note); });
+  el.addEventListener('pointerup', () => releaseNote(note));
+  el.addEventListener('pointerleave', () => releaseNote(note));
+  el.addEventListener('pointercancel', () => releaseNote(note));
+  whiteKeysEl.appendChild(el);
+});
+const whiteCount = WHITE_ORDER.length;
+BLACK_KEYS.forEach(bk => {
+  const el = document.createElement('div');
+  el.className = 'bkey';
+  el.dataset.note = bk.note;
+  const leftPct = ((bk.afterIndex + 1) / whiteCount) * 100 - (100/whiteCount)*0.32;
+  el.style.left = leftPct + '%';
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); pressNote(bk.note); });
+  el.addEventListener('pointerup', () => releaseNote(bk.note));
+  el.addEventListener('pointerleave', () => releaseNote(bk.note));
+  el.addEventListener('pointercancel', () => releaseNote(bk.note));
+  blackKeysEl.appendChild(el);
+});
+function keyEl(note){ return document.querySelector(`.wkey[data-note="${note}"], .bkey[data-note="${note}"]`); }
+
+window.addEventListener('keydown', (e) => {
+  if(e.repeat) return;
+  const note = KEY_MAP[e.key.toLowerCase()];
+  if(note) pressNote(note);
+});
+window.addEventListener('keyup', (e) => {
+  const note = KEY_MAP[e.key.toLowerCase()];
+  if(note) releaseNote(note);
+});
+
+// Pretty floating background: notes + twinkling stars in the wine/pink palette
+const sky = document.getElementById('sky');
+const NOTE_GLYPHS = ['🎵','🎶','✨'];
+for(let i=0;i<8;i++){
+  const n = document.createElement('div');
+  n.className = 'note-float';
+  n.textContent = NOTE_GLYPHS[i % NOTE_GLYPHS.length];
+  n.style.left = (Math.random()*94) + 'vw';
+  n.style.fontSize = (1.1 + Math.random()*1.2) + 'rem';
+  n.style.animationDuration = (9 + Math.random()*8) + 's';
+  n.style.animationDelay = (Math.random()*10) + 's';
+  sky.appendChild(n);
+}
+for(let i=0;i<34;i++){
+  const s = document.createElement('div');
+  s.className = 'star';
+  const size = 1.5 + Math.random()*2.5;
+  s.style.width = size + 'px';
+  s.style.height = size + 'px';
+  s.style.left = (Math.random()*100) + 'vw';
+  s.style.top = (Math.random()*70) + 'vh';
+  s.style.animationDuration = (1.8 + Math.random()*2.5) + 's';
+  s.style.animationDelay = (Math.random()*3) + 's';
+  sky.appendChild(s);
+}
+
+// Blinking
+setInterval(()=>{
+  eyeL.classList.add('blink'); eyeR.classList.add('blink');
+  setTimeout(()=>{ eyeL.classList.remove('blink'); eyeR.classList.remove('blink'); }, 140);
+}, 3200);
+
+// --- Challenges: follow-along songs with scoring ---
+const CHALLENGES = {
+  twinkle:  { label: 'Twinkle Twinkle', notes: ['C4','C4','G4','G4','A4','A4','G4','F4','F4','E4','E4','D4','D4','C4'] },
+  mary:     { label: "Mary's Lamb",     notes: ['E4','D4','C4','D4','E4','E4','E4','D4','D4','D4','E4','E4','E4'] },
+  hotcross: { label: 'Hot Cross Buns',  notes: ['E4','D4','C4','E4','D4','C4','C4','C4','C4','C4','D4','D4','D4','D4','E4','D4','C4'] },
+  jingle:   { label: 'Jingle Bells',    notes: ['E4','E4','E4','E4','E4','E4','E4','G4','C4','D4','E4'] },
+  ode:      { label: 'Ode to Joy',      notes: ['E4','E4','F4','G4','G4','F4','E4','D4','C4','C4','D4','E4','E4','D4','D4'] },
+};
+
+const picker = document.getElementById('challengePicker');
+Object.entries(CHALLENGES).forEach(([key, c]) => {
+  const b = document.createElement('button');
+  b.textContent = c.label;
+  b.addEventListener('click', () => startChallenge(key));
+  b.dataset.key = key;
+  picker.appendChild(b);
+});
+
+const challengeWrap = document.getElementById('challengeWrap');
+const trackEl = document.getElementById('track');
+const scoreLine = document.getElementById('scoreLine');
+
+let challenge = null;
+
+function startChallenge(key){
+  const c = CHALLENGES[key];
+  challenge = { notes: c.notes, index: 0, correct: 0, wrong: 0 };
+  [...picker.children].forEach(b => b.classList.toggle('picked', b.dataset.key === key));
+  challengeWrap.classList.add('show');
+  statusEl.textContent = `Follow along with "${c.label}" — play the highlighted note!`;
+  renderTrack();
+}
+
+function renderTrack(){
+  trackEl.innerHTML = '';
+  challenge.notes.forEach((note, i) => {
+    const p = document.createElement('div');
+    p.className = 'pill';
+    p.textContent = NOTE_LABEL(note);
+    if(i < challenge.index) p.classList.add('correct');
+    else if(i === challenge.index) p.classList.add('current');
+    trackEl.appendChild(p);
+  });
+  scoreLine.textContent = `Score: ${challenge.correct} / ${challenge.correct + challenge.wrong}`;
+}
+
+function handleChallengeInput(note){
+  if(!challenge) return;
+  const expected = challenge.notes[challenge.index];
+  const pills = trackEl.children;
+  if(note === expected){
+    challenge.correct++;
+    pills[challenge.index].classList.remove('current');
+    pills[challenge.index].classList.add('correct');
+    challenge.index++;
+    if(challenge.index >= challenge.notes.length){
+      const total = challenge.correct + challenge.wrong;
+      const pct = Math.round((challenge.correct/total)*100);
+      statusEl.textContent = `🎉 Done! Accuracy: ${pct}% (${challenge.correct}/${total}). Pick another song or try again!`;
+      scoreLine.textContent = `Final score: ${challenge.correct} / ${total} (${pct}%)`;
+      challenge = null;
+      return;
+    }
+    pills[challenge.index].classList.add('current');
+  } else {
+    challenge.wrong++;
+    const p = pills[challenge.index];
+    p.classList.remove('wrong');
+    void p.offsetWidth;
+    p.classList.add('wrong');
+    setTimeout(()=> p.classList.remove('wrong'), 300);
+  }
+  scoreLine.textContent = `Score: ${challenge.correct} / ${challenge.correct + challenge.wrong}`;
+}
+
+document.getElementById('exitChallengeBtn').addEventListener('click', () => {
+  challenge = null;
+  challengeWrap.classList.remove('show');
+  [...picker.children].forEach(b => b.classList.remove('picked'));
+  statusEl.textContent = 'Pick a challenge below, or just play freely!';
+});
+</script>
+</body>
+</html>
